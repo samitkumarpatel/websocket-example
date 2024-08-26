@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport"
+              content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <title>websocket-example</title>
+        <style>
+            body {
+                background-color: #f0f0f0;
+                margin-left: auto;
+                margin-right: auto;
+                width: 60%;
+            }
+            .login {
+                background-color: #fff;
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 10px;
+                width: 50%;
+                margin-top: 50px;
+            }
+            .login form {
+                margin: 0;
+            }
+            .login fieldset {
+                border: none;
+                margin: 0;
+                padding: 0;
+            }
+            .login legend {
+                font-size: 1.2em;
+                font-weight: bold;
+            }
+            .login label {
+                display: block;
+                margin-top: 10px;
+            }
+            .login input {
+                border: 1px solid #ccc;
+                border-radius: 5px;
+                padding: 5px;
+                width: 50%;
+                height: 30px;
+            }
+            .login button {
+                background-color: #007bff;
+                border: none;
+                border-radius: 5px;
+                color: #fff;
+                cursor: pointer;
+                margin-top: 10px;
+                padding: 5px;
+                width: 50%;
+                height: 30px;
+            }
+            .nav__div {
+                display: flex;
+                flex-direction: row;
+                justify-content: space-between;
+                padding: 10px;
+            }
+            
+        </style>
+    </head>
+    <body>
+        <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+        <script src="https://unpkg.com/vue-router@4.0.15/dist/vue-router.global.js"></script>
+        
+        <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+
+        <div id="app">
+            <nav>
+                <div class="nav__div" v-if="isLoggedIn">
+                    <div style="display: flex; flex-direction: row; column-gap: 10px;">
+                        <router-link to="/">Home</router-link>
+                        <router-link to="/dashboard">Dashboard</router-link>
+                        <router-link to="/other">Other</router-link>
+                    </div>
+
+                    <div style="display: flex; flex-direction: row; column-gap: 10px;">
+                        <span>Welcome, {{ loggedInUserName }}!</span>
+                        <span @click="logout" style="cursor: pointer; color: blue; text-decoration: underline;">Logout</a>
+                    </div>
+                    
+                </div>
+                
+            </nav>
+            <hr/>
+            <router-view @login_success="handleLoginSuccess"></router-view>
+            
+            <footer style="display: flex; flex-direction: column; margin-top: 100px; text-align: right;">
+                <div>
+                    <hr />
+                </div>
+                
+                <div>
+                    <small>Status: {{ websocketStatus ? 'Connected' : 'Disconnect'}}</small>
+                    <small 
+                        v-if="!websocketStatus" 
+                        @click="establishWebSocketConnection(loggedInUserName)" 
+                        style="margin-left: 5px; color: blue; text-decoration: underline; cursor: pointer;">Click to re connect</small>
+                </div>
+                <div>
+                    <small>WebSocket Example @ all rights reserved!</small>
+                </div>
+                
+            </footer>
+        </div>
+
+        <template id="home">
+            <h3>Home - {{ message }}</h3>
+        </template>
+        
+        <template id="login">
+            <div class="login">
+                <form @submit.prevent="doLogin">
+                    <fieldset>
+                        <legend>Login</legend>
+                        <label for="username">Username:</label>
+                        <br/>
+                        <input type="text" id="username" v-model="userName" required>
+                        
+                        <button type="submit">Login</button>
+                    </fieldset>   
+                </form>
+            </div>
+
+        </template>
+        
+        <script>
+            const { ref, createApp, watch, onMounted } = Vue
+            const { createRouter, createMemoryHistory, useRouter } = VueRouter
+            const apiHost = 'http://localhost:8080'
+
+            const HOME = {
+                template: '#home',
+                props: [],
+                emit: [],
+                setup() {
+                    const message = ref('Home page')
+                    return {
+                        message
+                    }
+                }
+            }
+            
+            const LOGIN = {
+                template: '#login',
+                setup(props, { emit }) {
+                    const message = ref('Login page')
+                    const userName = ref('')
+                    
+                    const doLogin = () => {
+                        localStorage.setItem('userId', userName.value)
+                        emit('login_success', userName.value)
+                        router.push('/')
+                    }
+
+                    return {
+                        message, userName, doLogin
+                    }
+                }
+            }
+            
+            const router = createRouter({
+                history: createMemoryHistory(),
+                routes: [
+                    { path: '/', component: HOME },
+                    { path: '/login', component: LOGIN },
+                    { path: '/dashboard', component: { template: '<h3>Dashboard</h3>' } },
+                    { path: '/other', component: { template: '<h3>Other</h3>' } }
+                ],
+            })
+
+            createApp({
+                setup() {
+                    const message = ref('Websocket example!')
+                    const isLoggedIn = ref(false)
+                    const loggedInUserName = ref('')
+                    const websocketStatus = ref(false)
+
+                    const logout = () => {
+                        localStorage.removeItem('userId')
+                        isLoggedIn.value = false
+                        router.push('/login')
+                    }
+
+                    const handleLoginSuccess = (data) => {
+                        isLoggedIn.value = true
+                        loggedInUserName.value = data
+                    }
+
+                    const establishWebSocketConnection = (userId) => {
+                        const socket = new SockJS(`${apiHost}/stomp-endpoint`);
+                        const stompClient = Stomp.over(socket);
+
+                        stompClient.connect({}, (frame) => {
+                            console.log('Connected: ' + frame);
+                            websocketStatus.value = true
+                            
+                            stompClient.subscribe('/topic/greetings', (greeting) => {
+                                console.log('greeting', greeting)
+                            });
+                        });
+                    }
+                    
+                    onMounted(() => {
+                        console.log('mounted')
+                        const userId = localStorage.getItem('userId')
+
+                        if (userId) {
+                            isLoggedIn.value = true
+                            loggedInUserName.value = userId
+                            establishWebSocketConnection(userId)
+                        } else {
+                            router.push('/login')
+                        }
+                    })
+                    
+                    return {
+                        message, isLoggedIn, logout, handleLoginSuccess, loggedInUserName, websocketStatus, establishWebSocketConnection
+                    }
+                },
+                components: {
+                    HOME,
+                    LOGIN
+                }
+            }).use(router).mount('#app')
+        </script>
+    </body>
+</html>
