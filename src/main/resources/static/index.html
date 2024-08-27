@@ -108,24 +108,22 @@
                 
             </nav>
             <hr/>
-            <router-view @login_success="handleLoginSuccess" :messages="messages"></router-view>
+            <router-view @login_success="handleLoginSuccess" @websocket_success="(v) => websocketStatus = v" :refresh_ws="refresh_ws" :user_name="loggedInUserName"></router-view>
             
             <footer style="display: flex; flex-direction: column; margin-top: 100px; text-align: right;">
                 <div>
                     <hr />
                 </div>
-                
-                <div v-if="isLoggedIn">
-                    Status: <small :class="websocketStatus ? 'status-online' : 'status-offline'">{{ websocketStatus ? 'Connected' : 'Disconnect'}}</small>
+                <div>
+                    <small style="color: gray;">WebSocket Example @ all rights reserved!</small>
+                </div>
+                <div v-if="isLoggedIn" style="margin-top: 10px;"> 
+                    <small :class="websocketStatus ? 'status-online' : 'status-offline'">{{ websocketStatus ? 'Connected' : 'Disconnect'}}</small>
                     <small 
-                        v-if="!websocketStatus" 
-                        @click="establishWebSocketConnection(loggedInUserName)" 
+                        v-if="!websocketStatus"
+                        @click="refresh_ws = !refresh_ws"
                         style="margin-left: 5px; color: blue; text-decoration: underline; cursor: pointer;">Refresh</small>
                 </div>
-                <div>
-                    <small>WebSocket Example @ all rights reserved!</small>
-                </div>
-                
             </footer>
         </div>
 
@@ -160,7 +158,6 @@
                     </fieldset>   
                 </form>
             </div>
-
         </template>
         
         <script>
@@ -170,13 +167,69 @@
 
             const HOME = {
                 template: '#home',
-                props: [],
+                props: ['refresh_ws', 'user_name'],
                 emit: [],
-                setup(props) {
-                    const message = ref('Home page')
-                    const messages = toRef(props, 'messages')
+                setup(props, { emit }) {
+                    const title = ref('Home page')
+                    const messages = ref([])
+                    const refresh_ws = toRef(props, 'refresh_ws')
+                    const loggedInUserName = toRef(props, 'user_name')
+
+                    watch(refresh_ws, (value) => {
+                        if(value) {
+                            console.log('refresh_ws', value)
+                            establishWebSocketConnection(loggedInUserName.value)
+                        }
+                    })
+                    
+                    const establishWebSocketConnection = (userId) => {
+                        const socket = new SockJS(`${apiHost}/stomp-endpoint`);
+                        const stompClient = Stomp.over(socket);
+                        const availableUsers = [1,2,3]
+                        
+                        stompClient.connect({'userId': userId}, (frame) => {
+                            console.log('stompClient.connect: ' + frame);
+                            messages.value.push("Connection Established")
+
+                            emit('websocket_success', true)
+                            
+                            //To send message to a user use /user/{userId}/queue/messages
+                            stompClient.subscribe(`/user/queue/private`, (message) => {
+                                console.log('Received Private Message : ' + message);
+                                messages.value.push(message.body)
+                                
+                            });
+                            
+                            stompClient.subscribe('/topic/public', (message) => {
+                                console.log('Received Publib Message', message.body)
+                                messages.value.push(message.body)
+                                
+                            });
+
+                            setInterval(() => {
+                                stompClient.send(`/app/public`, {}, JSON.stringify({userId: userId, message :`${new Date()} - Hello`}))
+                                
+                                availableUsers.forEach((user) => {
+                                    if( user !== userId)
+                                        stompClient.send(`/app/private`, {}, JSON.stringify({userId: userId, to: user, message :` Hello from ${userId} to ${user}`}))
+                                })
+
+                            }, 10000)
+
+
+                        }, (error) => {
+                            console.error('Error during connection: ', error);
+                            emit('websocket_success', false)
+                            messages.value.push("Error during connection")
+                        });
+                    }
+
+                    onMounted(() => {
+                        establishWebSocketConnection(loggedInUserName.value)
+                    })
+
                     return {
-                        message, messages
+                        title, messages
                     }
                 }
             }
@@ -214,7 +267,7 @@
                     const isLoggedIn = ref(false)
                     const loggedInUserName = ref('')
                     const websocketStatus = ref(false)
-                    const messages = ref([])
+                    const refresh_ws = ref(false)
 
                     const logout = () => {
                         localStorage.removeItem('userId')
@@ -226,65 +279,20 @@
                         isLoggedIn.value = true
                         loggedInUserName.value = data
                     }
-
-                    const establishWebSocketConnection = (userId) => {
-                        const socket = new SockJS(`${apiHost}/stomp-endpoint`);
-                        const stompClient = Stomp.over(socket);
-                        
-                        const availableuser = [1,2,3,4,5]
-
-                        stompClient.connect({}, (frame) => {
-                            console.log('Connected: ' + frame);
-                            websocketStatus.value = true
-
-                            stompClient.send('/topic/greetings', {}, JSON.stringify({
-                                            message: `Hello world from ${userId}`,
-                                            userId: userId
-                                        }))
-                                        
-                            setInterval(() => {
-                                console.log('setInterval');
-                                availableuser.forEach(au => {
-                                    if(au != userId) {
-                                        stompClient.send('/app/messages', {}, JSON.stringify({
-                                            message: `Hello world from ${userId}`,
-                                            userId: au
-                                        }));
-                                    }
-                                })
-                            }, 10000);
-
-                            
-                            
-                            stompClient.subscribe(`/user/${userId}/queue/messages`, (message) => {
-                                messages.value.push(message)
-                                console.log('Received: ' + message);
-                            });
-                            
-                            stompClient.subscribe('/topic/greetings', (greeting) => {
-                                messages.value.push(greeting)
-                                console.log('greeting', greeting)
-                            });
-                        });
-                    }
                     
                     onMounted(() => {
                         console.log('mounted')
                         const userId = localStorage.getItem('userId')
-                        
                         if (userId) {
                             isLoggedIn.value = true
                             loggedInUserName.value = userId
-                            establishWebSocketConnection(userId)
                         } else {
                             router.push('/login')
                         }
                     })
                     
                     return {
-                        messages, isLoggedIn, logout, 
-                            handleLoginSuccess, loggedInUserName, websocketStatus, 
-                                establishWebSocketConnection
+                        isLoggedIn, logout, handleLoginSuccess, loggedInUserName, websocketStatus, refresh_ws
                     }
                 },
                 components: {

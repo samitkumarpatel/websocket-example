@@ -1,4 +1,4 @@
 package net.samitkumar.websocket_example;
 
-public record UserMessage(String userId, String message) {
+public record UserMessage(String userId, String to, String message) {
 }

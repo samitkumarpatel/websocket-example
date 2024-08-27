@@ -12,10 +12,11 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        //not recomanded for production use. use a message broker like RabbitMQ or ActiveMQ (see the commented code below)
-        config.enableSimpleBroker("/topic", "/queue");
+        //not for production use. use a message broker like RabbitMQ or ActiveMQ (see the commented code below)
+        config.enableSimpleBroker("/queue/", "/topic/");
         config.setApplicationDestinationPrefixes("/app");
-        config.setUserDestinationPrefix("/user");  // User-specific messaging prefix
+        config.setPreservePublishOrder(true);
+        config.setUserDestinationPrefix("/user");
     }
 
     /*@Override
