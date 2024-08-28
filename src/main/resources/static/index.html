@@ -130,12 +130,14 @@
         <template id="home">
             <div style="display: flex; flex-direction: row; row-gap: 30px;">
                 <div class="send__message">
-                    <select>
-                        <option v-for="o in [1,2,3,4,5]">{{o}}</option>
+
+                    <select v-model="message.to">
+                        <option v-for="o in availableUsers" :disabled="o === Number(loggedInUserName)">{{o}}</option>
                     </select>
-                    <input type="text" placeholder="Write Messages">
+                    <input type="text" placeholder="Write Messages" v-model="message.message">
                     <br/>
-                    <button>Send</button>
+                    <button @click="sendMessage">Send</button>
+                    <button @click="() => fetchAvailableUser()">Reload User</button>
                 </div>
                 <div class="recived__message">
                     <ul>
@@ -174,6 +176,14 @@
                     const messages = ref([])
                     const refresh_ws = toRef(props, 'refresh_ws')
                     const loggedInUserName = toRef(props, 'user_name')
+                    const stompClient = ref(null)
+                    const availableUsers = ref([])
+
+                    const message = ref({
+                        from: loggedInUserName.value,
+                        to: '',
+                        message: ''
+                    })
 
                     watch(refresh_ws, (value) => {
                         if(value) {
@@ -181,41 +191,44 @@
                             establishWebSocketConnection(loggedInUserName.value)
                         }
                     })
+
+                    const sendMessage = () => {
+                        console.log(message.value)
+                        stompClient.value.send(`/app/private`, {}, JSON.stringify(message.value))
+                    }
                     
                     const establishWebSocketConnection = (userId) => {
                         const socket = new SockJS(`${apiHost}/stomp-endpoint`);
-                        const stompClient = Stomp.over(socket);
-                        const availableUsers = [1,2,3]
+                        stompClient.value = Stomp.over(socket);
+                        // const availableUsers = [1,2,3]
                         
-                        stompClient.connect({'userId': userId}, (frame) => {
+                        stompClient.value.connect({'userId': userId}, (frame) => {
                             console.log('stompClient.connect: ' + frame);
                             messages.value.push("Connection Established")
 
                             emit('websocket_success', true)
                             
                             //To send message to a user use /user/{userId}/queue/messages
-                            stompClient.subscribe(`/user/queue/private`, (message) => {
+                            stompClient.value.subscribe(`/user/queue/private`, (message) => {
                                 console.log('Received Private Message : ' + message);
                                 messages.value.push(message.body)
                                 
                             });
                             
-                            stompClient.subscribe('/topic/public', (message) => {
+                            stompClient.value.subscribe('/topic/public', (message) => {
                                 console.log('Received Publib Message', message.body)
                                 messages.value.push(message.body)
                                 
                             });
 
-                            setInterval(() => {
-                                stompClient.send(`/app/public`, {}, JSON.stringify({userId: userId, message :`${new Date()} - Hello`}))
-                                
-                                availableUsers.forEach((user) => {
-                                    if( user !== userId)
-                                        stompClient.send(`/app/private`, {}, JSON.stringify({userId: userId, to: user, message :` Hello from ${userId} to ${user}`}))
-                                })
-
-                            }, 10000)
-
+                            stompClient.value.send(`/app/public`, {}, JSON.stringify({message :`Hello everyone , from ${userId}`}))
+                            
+                            // availableUsers.forEach((user) => {
+                            //     if( user !== Number(userId)) {
+                            //         stompClient.value.send(`/app/private`, {}, JSON.stringify({from: userId, to: user, message :` Hello from ${userId} to ${user}`}))
+                            //     }
+                                    
+                            // })
 
                         }, (error) => {
                             console.error('Error during connection: ', error);
@@ -224,12 +237,24 @@
                         });
                     }
 
+                    const fetchAvailableUser = () => {
+                        fetch(`${apiHost}/sessions`)
+                            .then(response => {
+                                if(!response.ok)
+                                    throw new Error("error while fetch")
+                                return response.json()
+                            })
+                            .then(data => availableUsers.value = data)
+                            .catch(e => console.error(e))
+                    }
+
                     onMounted(() => {
                         establishWebSocketConnection(loggedInUserName.value)
+                        fetchAvailableUser()
                     })
 
                     return {
-                        title, messages
+                        title, messages, message, sendMessage, loggedInUserName, availableUsers, fetchAvailableUser
                     }
                 }
             }
