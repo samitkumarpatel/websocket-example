@@ -108,7 +108,11 @@
                 
             </nav>
             <hr/>
-            <router-view @login_success="handleLoginSuccess" @websocket_success="(v) => websocketStatus = v" :refresh_ws="refresh_ws" :user_name="loggedInUserName"></router-view>
+            <router-view 
+                @login_success="handleLoginSuccess"
+                @websocket_success="(v) => websocketStatus = v" :refresh_ws="refresh_ws" 
+                :user_name="loggedInUserName"
+                :logout_handler="!isLoggedIn"></router-view>
             
             <footer style="display: flex; flex-direction: column; margin-top: 100px; text-align: right;">
                 <div>
@@ -167,13 +171,14 @@
 
             const HOME = {
                 template: '#home',
-                props: ['refresh_ws', 'user_name'],
+                props: ['refresh_ws', 'user_name', 'logout_handler'],
                 emit: [],
                 setup(props, { emit }) {
                     const title = ref('Home page')
                     const messages = ref([])
                     const refresh_ws = toRef(props, 'refresh_ws')
                     const loggedInUserName = toRef(props, 'user_name')
+                    const stompClient = ref(null)
 
                     watch(refresh_ws, (value) => {
                         if(value) {
@@ -181,41 +186,67 @@
                             establishWebSocketConnection(loggedInUserName.value)
                         }
                     })
+
+                    watch(
+                        () => props.logout_handler,
+                        (value) => {
+                            console.log('logout_handler', value)
+                            if(value) {
+                                stompClient.value.disconnect()
+                                stompClient.value = null
+                            }
+                        }
+                    )
+
+                    watch(
+                        () => stompClient.value,
+                        (value) => {
+                            console.log('stompClient', value)
+                        }
+                    )
                     
                     const establishWebSocketConnection = (userId) => {
                         const socket = new SockJS(`${apiHost}/stomp-endpoint`);
-                        const stompClient = Stomp.over(socket);
-                        const availableUsers = [1,2,3]
-                        
-                        stompClient.connect({'userId': userId}, (frame) => {
+                        stompClient.value = Stomp.over(socket);                        
+                        const availableCustomer = [1,2,3]
+
+                        stompClient.value.connect({'userId': userId}, (frame) => {
                             console.log('stompClient.connect: ' + frame);
                             messages.value.push("Connection Established")
 
                             emit('websocket_success', true)
                             
                             //To send message to a user use /user/{userId}/queue/messages
-                            stompClient.subscribe(`/user/queue/private`, (message) => {
+                            stompClient.value.subscribe(`/user/queue/private`, (message) => {
+                                console.log('Received Private Message : ' + message);
+                                messages.value.push(message.body)
+                                
+                            });
+
+                            stompClient.value.subscribe(`/user/${userId}/queue/private`, (message) => {
                                 console.log('Received Private Message : ' + message);
                                 messages.value.push(message.body)
                                 
                             });
                             
-                            stompClient.subscribe('/topic/public', (message) => {
+                            stompClient.value.subscribe('/topic/public', (message) => {
                                 console.log('Received Publib Message', message.body)
                                 messages.value.push(message.body)
                                 
                             });
 
-                            setInterval(() => {
-                                stompClient.send(`/app/public`, {}, JSON.stringify({userId: userId, message :`${new Date()} - Hello`}))
-                                
-                                availableUsers.forEach((user) => {
-                                    if( user !== userId)
-                                        stompClient.send(`/app/private`, {}, JSON.stringify({userId: userId, to: user, message :` Hello from ${userId} to ${user}`}))
-                                })
+                            
+                            //Test message
+                            stompClient.value.send(`/app/public`, {}, JSON.stringify({userId: userId, message :`${new Date()} - Hello`}))
 
-                            }, 10000)
+                            stompClient.value.send(`/app/private`, {}, JSON.stringify({userId: userId, to: user, message :` Hello from ${userId} to ${user}`}))
+                            
+                            //Test message
+                            
 
+                            setTimeout(() => {
+                                clearInterval(i)
+                            }, 60000)
 
                         }, (error) => {
                             console.error('Error during connection: ', error);

@@ -10,6 +10,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
 
+import java.security.Principal;
 import java.util.Map;
 
 @Controller
@@ -21,21 +22,15 @@ public class MessageController {
 
     @MessageMapping("/private")
     @SendToUser("/queue/private")
-    public UserMessage sendMessageToUser(UserMessage userMessage, @Headers Map<Object, Object> headers) {
-        log.info("sendMessageToUser userMessage: {} Headers: {}", userMessage, headers);
+    public UserMessage sendMessageToUser(UserMessage userMessage, @Headers Map<Object, Object> headers, Principal principal) {
+        log.info("sendMessageToUser Principle {}, userMessage: {} Headers: {}", principal, userMessage, headers);
         return userMessage;
     }
 
-//    @MessageMapping("/private")
-//    public void sendMessageToUser(UserMessage message, @Headers Map<Object, Object> headers) {
-//        log.info("messagingTemplate::sendMessageToUser.Headers: {}", headers);
-//        messagingTemplate.convertAndSendToUser(message.to(), "/queue/private", message.message());
-//    }
-
     @MessageMapping("/public")
     @SendTo("/topic/public")
-    public String sendGreetingToUser(String message, @Headers Map<Object, Object> headers) throws InterruptedException {
-        log.info("sendGreetingToUser.Headers: {}, {}", message, headers);
+    public String sendGreetingToUser(String message, @Headers Map<Object, Object> headers, Principal principal) throws InterruptedException {
+        log.info("sendGreetingToUser Principle {} Headers: {}, {}", principal, headers, message);
         Thread.sleep(1000);
         return message;
     }
