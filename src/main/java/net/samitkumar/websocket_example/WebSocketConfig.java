@@ -25,7 +25,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         //not for production use. use a message broker like RabbitMQ or ActiveMQ (see the commented code below)
         config.enableSimpleBroker("/queue/", "/topic/");
         config.setApplicationDestinationPrefixes("/app");
-        config.setPreservePublishOrder(true);
         config.setUserDestinationPrefix("/user");
     }
 
@@ -44,22 +43,8 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Register a STOMP endpoint at '/stomp-endpoint'
         registry.addEndpoint("/stomp-endpoint")
-                .setHandshakeHandler(new UserHandshakeHandler())
                 .setAllowedOriginPatterns("*")
                 .withSockJS()
                 .setHeartbeatTime(60_000);
     }
-}
-
-@Slf4j
-@RequiredArgsConstructor
-class UserHandshakeHandler extends DefaultHandshakeHandler {
-
-    @Override
-    protected Principal determineUser(ServerHttpRequest request, WebSocketHandler wsHandler, Map<String, Object> attributes) {
-        var uuid = UUID.randomUUID().toString();
-        log.info("UUID: {}", uuid);
-        return new UserPrincipal(uuid);
-    }
-
 }

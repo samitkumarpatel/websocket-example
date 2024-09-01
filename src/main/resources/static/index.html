@@ -134,12 +134,14 @@
         <template id="home">
             <div style="display: flex; flex-direction: row; row-gap: 30px;">
                 <div class="send__message">
-                    <select>
-                        <option v-for="o in [1,2,3,4,5]">{{o}}</option>
-                    </select>
-                    <input type="text" placeholder="Write Messages">
-                    <br/>
-                    <button>Send</button>
+                    <form @submit.prevent="sendMessage">
+                        <select v-model="message.to">
+                            <option v-for="o in [1,2,3,4,5]" :disabled="o === Number(loggedInUserName)">{{o}}</option>
+                        </select>
+                        <input type="text" placeholder="Write Messages" v-model="message.message">
+                        <br/>
+                        <button>Send</button>
+                    </form>
                 </div>
                 <div class="recived__message">
                     <ul>
@@ -179,6 +181,11 @@
                     const refresh_ws = toRef(props, 'refresh_ws')
                     const loggedInUserName = toRef(props, 'user_name')
                     const stompClient = ref(null)
+                    const message = ref({
+                        from: '',
+                        to: '',
+                        message: ''
+                    })
 
                     watch(refresh_ws, (value) => {
                         if(value) {
@@ -216,37 +223,21 @@
 
                             emit('websocket_success', true)
                             
-                            //To send message to a user use /user/{userId}/queue/messages
-                            stompClient.value.subscribe(`/user/queue/private`, (message) => {
-                                console.log('Received Private Message : ' + message);
-                                messages.value.push(message.body)
-                                
-                            });
-
-                            stompClient.value.subscribe(`/user/${userId}/queue/private`, (message) => {
-                                console.log('Received Private Message : ' + message);
-                                messages.value.push(message.body)
+                            stompClient.value.subscribe(`/user/queue/private`, (msg) => {
+                                console.log('Received Private Message : ' + msg);
+                                messages.value.push(msg.body)
                                 
                             });
                             
-                            stompClient.value.subscribe('/topic/public', (message) => {
-                                console.log('Received Publib Message', message.body)
-                                messages.value.push(message.body)
+                            stompClient.value.subscribe('/topic/public', (msg) => {
+                                console.log('Received Publib Message', msg.body)
+                                messages.value.push(msg.body)
                                 
                             });
 
                             
                             //Test message
-                            stompClient.value.send(`/app/public`, {}, JSON.stringify({userId: userId, message :`${new Date()} - Hello`}))
-
-                            stompClient.value.send(`/app/private`, {}, JSON.stringify({userId: userId, to: user, message :` Hello from ${userId} to ${user}`}))
-                            
-                            //Test message
-                            
-
-                            setTimeout(() => {
-                                clearInterval(i)
-                            }, 60000)
+                            stompClient.value.send(`/app/public`, {}, JSON.stringify({message :`${userId} just Joined`}))
 
                         }, (error) => {
                             console.error('Error during connection: ', error);
@@ -255,12 +246,23 @@
                         });
                     }
 
+                    const sendMessage = () => {
+                        console.log(message.value)
+                        stompClient.value.send(`/app/private`, {}, JSON.stringify({userId: loggedInUserName.value, to: message.value.to, message: message.value.message}))
+            
+                        message.value = {
+                            from: '',
+                            to: '',
+                            message: ''
+                        }
+                    }
+
                     onMounted(() => {
                         establishWebSocketConnection(loggedInUserName.value)
                     })
 
                     return {
-                        title, messages
+                        title, messages, message, sendMessage, loggedInUserName
                     }
                 }
             }
