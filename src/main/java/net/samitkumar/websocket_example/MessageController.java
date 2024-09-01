@@ -7,6 +7,9 @@ import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
 import java.util.Map;
@@ -33,7 +36,7 @@ public class MessageController {
         var sendTo = users.get(userMessage.to());
         log.info("sendMessageToUser sendTo: {} userMessage: {} Headers: {}",sendTo, userMessage, headers);
         //messagingTemplate.convertAndSendToUser(sendTo, "/queue/private", userMessage.message());
-        messagingSendingTemplate.convertAndSendToUser( sendTo, "/user/queue/private", userMessage.message());
+        messagingSendingTemplate.convertAndSendToUser( sendTo, "/queue/private", userMessage.message());
     }
 
     @MessageMapping("/public")
@@ -48,5 +51,17 @@ public class MessageController {
     @SendToUser(destinations="/queue/errors")
     public String handleException(Exception exception) {
         return exception.getMessage();
+    }
+}
+
+@RestController
+@RequiredArgsConstructor
+class ApiController {
+    private final SimpMessagingTemplate messagingTemplate;
+
+    @GetMapping("/send")
+    public Map<String,String> sendMessage(@RequestParam String id, @RequestParam String message) {
+        messagingTemplate.convertAndSendToUser(id, "/queue/private", message);
+        return Map.of("message", "SUCCESS");
     }
 }
