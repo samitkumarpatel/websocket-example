@@ -1,31 +1,40 @@
 package net.samitkumar.websocket_example;
 
-import com.sun.security.auth.UserPrincipal;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.web.socket.WebSocketHandler;
-import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
-import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
-import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
-import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
-
-import java.security.Principal;
-import java.util.Map;
-import java.util.UUID;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.web.socket.config.annotation.*;
 
 @Configuration
 @EnableWebSocketMessageBroker
+@EnableWebSocket
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
+
+    @Bean
+    public TaskScheduler taskScheduler() {
+        ThreadPoolTaskScheduler taskScheduler = new ThreadPoolTaskScheduler();
+        taskScheduler.setPoolSize(10);
+        taskScheduler.setThreadNamePrefix("WebSocketTaskScheduler-");
+        taskScheduler.initialize();
+        return taskScheduler;
+    }
+
+    @Override
+    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
+        registration.setMessageSizeLimit(8192) // default: 64 * 1024
+                .setSendTimeLimit(20 * 10000) // default: 10 seconds
+                .setSendBufferSizeLimit(512 * 1024); // default: 512 * 1024
+    }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         //not for production use. use a message broker like RabbitMQ or ActiveMQ (see the commented code below)
-        config.enableSimpleBroker("/queue/", "/topic/");
+        config.enableSimpleBroker("/queue/", "/topic/").setHeartbeatValue(new long[]{10000, 10000}).setTaskScheduler(taskScheduler()); // Set heartbeat to 10 seconds
         config.setApplicationDestinationPrefixes("/app");
         config.setUserDestinationPrefix("/user");
+
     }
 
     /*@Override

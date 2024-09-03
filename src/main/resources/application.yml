@@ -3,8 +3,8 @@ spring:
     name: websocket-example
 logging:
   level:
-    web: debug
+    web: trace
     org:
       springframework:
         web:
-          socket: debug
+          socket: trace

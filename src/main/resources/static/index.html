@@ -243,6 +243,12 @@
                             console.error('Error during connection: ', error);
                             emit('websocket_success', false)
                             messages.value.push("Error during connection")
+                        },{
+
+                            'heartbeat': {
+                                outgoing: 10000, // Send heartbeats every 10 seconds
+                                incoming: 10000  // Expect heartbeats every 10 seconds
+                            }
                         });
                     }
 
