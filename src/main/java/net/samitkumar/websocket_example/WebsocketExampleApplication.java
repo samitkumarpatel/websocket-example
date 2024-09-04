@@ -28,16 +28,17 @@ public class WebsocketExampleApplication {
 	@EventListener
 	public void onSessionConnect(SessionConnectEvent event) {
 		log.info("onSessionConnect {}",event);
-		event.getMessage().getHeaders().forEach((key, value) -> log.info("{}={}", key, value));
+		event.getMessage().getHeaders().forEach((key, value) -> log.info("#### {}={}", key, value));
+		var uuid = event.getUser().getName();
 		var sessionId = (String) event.getMessage().getHeaders().get("simpSessionId");
 		var nativeHeaders =  event.getMessage().getHeaders().get("nativeHeaders", Map.class);
 
 		if (nativeHeaders != null && nativeHeaders.containsKey("userId")) {
 			var userId = ((List<String>) nativeHeaders.get("userId")).get(0);
 			log.info("attached sessionId={} with userId={}", sessionId, userId);
-			users().put(userId, sessionId);
+			users().put(userId, uuid);
 		}
-		log.info("users() {}", users());
+		log.info("############### users() {} ###########", users());
 	}
 
 	@EventListener

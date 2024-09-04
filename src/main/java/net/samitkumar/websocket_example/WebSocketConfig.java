@@ -1,40 +1,33 @@
 package net.samitkumar.websocket_example;
 
-import org.springframework.context.annotation.Bean;
+import com.sun.security.auth.UserPrincipal;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.server.ServerHttpRequest;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
-import org.springframework.scheduling.TaskScheduler;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
-import org.springframework.web.socket.config.annotation.*;
+import org.springframework.web.socket.WebSocketHandler;
+import org.springframework.web.socket.config.annotation.EnableWebSocket;
+import org.springframework.web.socket.config.annotation.EnableWebSocketMessageBroker;
+import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
+import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
+import org.springframework.web.socket.server.support.DefaultHandshakeHandler;
+
+import java.security.Principal;
+import java.util.Map;
+import java.util.UUID;
 
 @Configuration
 @EnableWebSocketMessageBroker
 @EnableWebSocket
+@Slf4j
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
-
-    @Bean
-    public TaskScheduler taskScheduler() {
-        ThreadPoolTaskScheduler taskScheduler = new ThreadPoolTaskScheduler();
-        taskScheduler.setPoolSize(10);
-        taskScheduler.setThreadNamePrefix("WebSocketTaskScheduler-");
-        taskScheduler.initialize();
-        return taskScheduler;
-    }
-
-    @Override
-    public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
-        registration.setMessageSizeLimit(8192) // default: 64 * 1024
-                .setSendTimeLimit(20 * 10000) // default: 10 seconds
-                .setSendBufferSizeLimit(512 * 1024); // default: 512 * 1024
-    }
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
         //not for production use. use a message broker like RabbitMQ or ActiveMQ (see the commented code below)
-        config.enableSimpleBroker("/queue/", "/topic/").setHeartbeatValue(new long[]{10000, 10000}).setTaskScheduler(taskScheduler()); // Set heartbeat to 10 seconds
+        config.enableSimpleBroker("/queue/", "/topic/");
         config.setApplicationDestinationPrefixes("/app");
         config.setUserDestinationPrefix("/user");
-
     }
 
     /*@Override
@@ -52,8 +45,16 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // Register a STOMP endpoint at '/stomp-endpoint'
         registry.addEndpoint("/stomp-endpoint")
+                .setHandshakeHandler(new DefaultHandshakeHandler() {
+                    @Override
+                    protected Principal determineUser(ServerHttpRequest request, WebSocketHandler wsHandler, Map<String, Object> attributes) {
+                        log.info("##### request.headers : {}", request.getHeaders());
+                        var uuid = UUID.randomUUID().toString();
+                        attributes.put("UUID", uuid);
+                        return new UserPrincipal(uuid);
+                    }
+                })
                 .setAllowedOriginPatterns("*")
-                .withSockJS()
-                .setHeartbeatTime(60_000);
+                .withSockJS().setHeartbeatTime(60_000);
     }
 }
