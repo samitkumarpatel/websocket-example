@@ -2,17 +2,21 @@ package net.samitkumar.websocket_example;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.handler.annotation.*;
 import org.springframework.messaging.simp.SimpMessageSendingOperations;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.messaging.simp.annotation.SendToUser;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.security.Principal;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @Controller
 @RequiredArgsConstructor
@@ -56,12 +60,13 @@ public class MessageController {
 
 @RestController
 @RequiredArgsConstructor
+@CrossOrigin(originPatterns = "*")
 class ApiController {
-    private final SimpMessagingTemplate messagingTemplate;
+    final Map<String, String> users;
 
-    @GetMapping("/send")
-    public Map<String,String> sendMessage(@RequestParam String id, @RequestParam String message) {
-        messagingTemplate.convertAndSendToUser(id, "/queue/private", message);
-        return Map.of("message", "SUCCESS");
+    @GetMapping("/users")
+    public ResponseEntity<List<Map<String, String>>> allUsers() {
+        List<Map<String, String>> response = users.entrySet().stream().map(entry -> Map.of("name", entry.getKey())).toList();
+        return ResponseEntity.ok(response);
     }
 }

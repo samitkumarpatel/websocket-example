@@ -84,6 +84,20 @@
             input, select, button {
                 height: 30px;
             }
+
+            .loader {
+                border: 1px solid #f3f3f3;
+                border-top: 5px solid #3498db;
+                border-radius: 50%;
+                width: 30px;
+                height: 30px;
+                animation: spin 2s linear infinite;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
             
         </style>
     </head>
@@ -139,8 +153,9 @@
             <div style="display: flex; flex-direction: row; row-gap: 30px;">
                 <div class="send__message">
                     <form @submit.prevent="sendMessage">
-                        <select v-model="message.to">
-                            <option v-for="o in [1,2,3,4,5]" :disabled="o === Number(loggedInUserName)">{{o}}</option>
+                        <div class="loader" v-if="spinner"></div>
+                        <select v-model="message.to" v-else>
+                            <option v-for="o in availableCustomer" :disabled="o.name === loggedInUserName">{{o.name}}</option>
                         </select>
                         <input type="text" placeholder="Write Messages" v-model="message.message">
                         <br/>
@@ -185,6 +200,10 @@
                     const refresh_ws = toRef(props, 'refresh_ws')
                     const loggedInUserName = toRef(props, 'user_name')
                     const stompClient = ref(null)
+                    const availableCustomer = ref([])
+                    const newUser = ref(null)
+                    const spinner = ref(true)
+
                     const message = ref({
                         from: '',
                         to: '',
@@ -203,7 +222,7 @@
                         (value) => {
                             console.log('logout_handler', value)
                             if(value) {
-                                stompClient.value.disconnect()
+                                stompClient.value.disconnect({userId: loggedInUserName.value}, (frame) => {})
                                 stompClient.value = null
                             }
                         }
@@ -218,8 +237,7 @@
                     
                     const establishWebSocketConnection = (userId) => {
                         const socket = new SockJS(`${apiHost}/stomp-endpoint`);
-                        stompClient.value = Stomp.over(socket);                        
-                        const availableCustomer = [1,2,3]
+                        stompClient.value = Stomp.over(socket);
 
                         stompClient.value.connect({'userId': userId}, (frame) => {
                             console.log('stompClient.connect: ' + frame);
@@ -246,6 +264,11 @@
                                 
                             },{'userId': userId});
 
+                            stompClient.value.subscribe('/topic/refresh-user', (msg) => {
+                                spinner.value = true
+                                newUser.value = JSON.parse(msg.body)
+                            },{'userId': userId});
+
                             
                             //Test message
                             stompClient.value.send(`/app/public`, {}, JSON.stringify({message :`${userId} just Joined`}))
@@ -268,12 +291,35 @@
                         }
                     }
 
+                    const fetchUsers = () => {
+                        fetch(`${apiHost}/users`)
+                            .then(response => {
+                                if(!response.ok)
+                                    throw new Error('Error While Fetching')
+                                return response.json()
+                            })
+                            .then(data => availableCustomer.value = data)
+                            .catch(e => console.log(e))
+                            .finally(f => spinner.value = false)
+                    }
+
+                    watch(
+                        () => newUser.value,
+                        (value) => {
+                            fetchUsers()
+                        }
+                    )
+
                     onMounted(() => {
                         establishWebSocketConnection(loggedInUserName.value)
+                        setTimeout(() => {
+                            fetchUsers()
+                        }, 2000)
+                        
                     })
 
                     return {
-                        title, messages, message, sendMessage, loggedInUserName
+                        title, messages, message, sendMessage, loggedInUserName, availableCustomer, spinner
                     }
                 }
             }
