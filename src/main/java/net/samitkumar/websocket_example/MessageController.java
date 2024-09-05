@@ -32,7 +32,7 @@ public class MessageController {
     }*/
 
     @MessageMapping("/private")
-    public void sendMessageToUser(@Payload UserMessage userMessage, @Headers Map<Object, Object> headers) {
+    public void sendMessageToUser(@Payload UserMessage userMessage, @Headers Map<Object, Object> headers, Principal principal) {
         var sendTo = users.get(userMessage.to());
         log.info("sendMessageToUser sendTo: {} userMessage: {} Headers: {}",sendTo, userMessage, headers);
         //messagingTemplate.convertAndSendToUser(sendTo, "/queue/private", userMessage.message());

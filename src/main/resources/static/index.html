@@ -80,6 +80,10 @@
                 width: 50%;
                 border-right: 1px solid grey;
             }
+
+            input, select, button {
+                height: 30px;
+            }
             
         </style>
     </head>
@@ -221,19 +225,26 @@
                             console.log('stompClient.connect: ' + frame);
                             messages.value.push("Connection Established")
 
+                            var url = stompClient.value.ws._transport.url;
+                            console.log("url: " + url);
+                            const parts = url.split('/')
+                            console.log(parts)
+                            const sessionId = parts[5]
+                            console.log(sessionId)
+                            
                             emit('websocket_success', true)
                             
                             stompClient.value.subscribe(`/user/queue/private`, (msg) => {
                                 console.log('Received Private Message : ' + msg);
                                 messages.value.push(msg.body)
                                 
-                            });
+                            },{'userId': userId});
                             
                             stompClient.value.subscribe('/topic/public', (msg) => {
                                 console.log('Received Publib Message', msg.body)
                                 messages.value.push(msg.body)
                                 
-                            });
+                            },{'userId': userId});
 
                             
                             //Test message
